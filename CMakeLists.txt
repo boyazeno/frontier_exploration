@@ -68,6 +68,11 @@ add_executable(explore_client src/explore_client.cpp)
 target_link_libraries(explore_client ${catkin_LIBRARIES})
 add_dependencies(explore_client ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
+
+add_executable(sendPointsExplorationClient src/sendPointsExplorationClient.cpp)
+target_link_libraries(sendPointsExplorationClient ${catkin_LIBRARIES})
+add_dependencies(sendPointsExplorationClient ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+
 if(CATKIN_ENABLE_TESTING)
   # Find package test dependencies
   find_package(rostest REQUIRED)

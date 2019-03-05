@@ -79,11 +79,12 @@ namespace frontier_exploration{
       delta_x = end.x - origin.x;
       delta_y = end.y - origin.y;
 
-      double yaw = atan(delta_x/delta_y);
+      double yaw = atan(delta_y/delta_x);
+      // double yaw = atan(delta_x/delta_y);
 
       if(delta_x < 0){
-          yaw = M_PI-yaw;
-      }
+          yaw = M_PI+yaw;
+       }
 
       return yaw;
   }

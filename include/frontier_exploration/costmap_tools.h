@@ -75,6 +75,27 @@ std::vector<unsigned int> nhood8(unsigned int idx, const costmap_2d::Costmap2D& 
 
 }
 
+
+/**
+ * @brief judge whether the cell is lower than a specified value
+ * @param start Index cell to search from
+ * @param val Specified value to search for
+ * @param costmap Reference to map data
+ * @return True if the cell fulfilled the requested value
+ */
+//TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+bool freeCell(unsigned int idx, unsigned char val, const costmap_2d::Costmap2D& costmap){
+    const unsigned char* map = costmap.getCharMap();
+    if(map[idx] == val){
+            return true;
+        }
+    return false;
+}
+
+
+
+
+
 /**
  * @brief Find nearest cell of a specified value
  * @param result Index of located cell

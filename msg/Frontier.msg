@@ -3,3 +3,5 @@ float64 min_distance
 geometry_msgs/Point initial
 geometry_msgs/Point centroid
 geometry_msgs/Point middle
+geometry_msgs/Point initial_nbr
+geometry_msgs/Point middle_nbr

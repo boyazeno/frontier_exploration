@@ -56,7 +56,7 @@ std::list<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position){
         bfs.pop();
 
         //iterate over 4-connected neighbourhood
-        BOOST_FOREACH(unsigned nbr, nhood4(idx, costmap_)){
+        BOOST_FOREACH(unsigned int nbr, nhood4(idx, costmap_)){
             //add to queue all free, unvisited cells, use descending search in case initialized on non-free cell
             if(map_[nbr] <= map_[idx] && !visited_flag[nbr]){
                 visited_flag[nbr] = true;
@@ -65,7 +65,7 @@ std::list<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position){
             }else if(isNewFrontierCell(nbr, frontier_flag)){
                 frontier_flag[nbr] = true;
                 Frontier new_frontier = buildNewFrontier(nbr, pos, frontier_flag);
-                if(new_frontier.size > 1){
+                if(new_frontier.size > 4){
                     frontier_list.push_back(new_frontier);
                 }
             }
@@ -88,8 +88,32 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned in
     //record initial contact point for frontier
     unsigned int ix, iy;
     costmap_.indexToCells(initial_cell,ix,iy);
-    costmap_.mapToWorld(ix,iy,output.initial.x,output.initial.y);
-
+    costmap_.mapToWorld(ix,iy,output.initial.x,output.initial.y); 
+    
+    //TODO iterate calculate average free pixel around current pixel
+    //and save it in output.initial_nbr a average point in world coords
+    int size = 0;
+    output.initial_nbr.x = 0.0;
+    output.initial_nbr.y = 0.0;
+    
+    BOOST_FOREACH(unsigned int nbr, nhood8(initial_cell, costmap_)){
+        //check if neiighbour is a FREE_SPACE
+        //if yes, then add it to calculate the average range
+        
+        if(freeCell(nbr, FREE_SPACE, costmap_)){
+            unsigned int tx, ty;
+            double wx,wy;
+            costmap_.indexToCells(nbr,tx,ty);
+            costmap_.mapToWorld(tx,ty,wx,wy); 
+            output.initial_nbr.x += wx;
+            output.initial_nbr.y += wy;
+            size++;
+        }
+    }
+    output.initial_nbr.x /= size;
+    output.initial_nbr.y /= size;
+    
+    
     //push initial gridcell onto queue
     std::queue<unsigned int> bfs;
     bfs.push(initial_cell);
@@ -113,8 +137,8 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned in
                 frontier_flag[nbr] = true;
                 unsigned int mx,my;
                 double wx,wy;
-                costmap_.indexToCells(nbr,mx,my);
-                costmap_.mapToWorld(mx,my,wx,wy);
+                costmap_.indexToCells(nbr,mx,my); //get index for pixel in costmap
+                costmap_.mapToWorld(mx,my,wx,wy); //get corresponding index  for pixel in the world
 
                 //update frontier size
                 output.size++;
@@ -129,6 +153,29 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned in
                     output.min_distance = distance;
                     output.middle.x = wx;
                     output.middle.y = wy;
+                    //TODO iterate calculate average free pixel around current pixel
+                    //and save it in output.middle_nbr a average point in world coords
+                    size = 0;
+                    output.middle_nbr.x = 0.0;
+                    output.middle_nbr.y = 0.0;
+                    BOOST_FOREACH(unsigned int nbr_nbr, nhood8(nbr, costmap_)){
+                    //check if neiighbour is a FREE_SPACE
+                    //if yes, then add it to calculate the average range
+        
+                    if(freeCell(nbr_nbr, FREE_SPACE, costmap_)){
+                        unsigned int tx, ty;
+                        double wx,wy;
+                        costmap_.indexToCells(nbr_nbr,tx,ty);
+                        costmap_.mapToWorld(tx,ty,wx,wy); 
+                        output.middle_nbr.x += wx;
+                        output.middle_nbr.y += wy;
+                        size++;
+                    }
+                    }
+                    output.middle_nbr.x /= size;
+                    output.middle_nbr.y /= size;
+    
+
                 }
 
                 //add to queue for breadth first search

@@ -89,7 +89,7 @@ private:
 
         //set region boundary on costmap
         if(ros::ok() && as_.isActive()){
-            frontier_exploration::UpdateBoundaryPolygon srv;
+            frontier_exploration::UpdateBoundaryPolygon srv;  //send the BoundaryPolygon to the server, generate a occupied region in costmap
             srv.request.explore_boundary = goal->explore_boundary;
             if(updateBoundaryPolygon.call(srv)){
                 ROS_INFO("Region boundary set");
@@ -112,8 +112,10 @@ private:
             //get current robot pose in frame of exploration boundary
             tf::Stamped<tf::Pose> robot_pose;
             explore_costmap_ros_->getRobotPose(robot_pose);
+            ROS_DEBUG("the current robot_pose is: x");
 
             //provide current robot pose to the frontier search service request
+            //transfer the stamped Pose into pose.
             tf::poseStampedTFToMsg(robot_pose,srv.request.start_pose);
 
             //evaluate if robot is within exploration boundary using robot_pose in boundary frame

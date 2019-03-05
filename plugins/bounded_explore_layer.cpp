@@ -2,6 +2,7 @@
 
 #include <pluginlib/class_list_macros.h>
 #include <geometry_msgs/PolygonStamped.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/footprint.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -38,6 +39,7 @@ namespace frontier_exploration
 
         ros::NodeHandle nh_("~/" + name_);
         frontier_cloud_pub = nh_.advertise<sensor_msgs::PointCloud2>("frontiers",5);
+       // frontier_next_goal = nh_.advertise<geometry_msgs::PoseStamped>("next_goal",1);//TODO write a publiser to publish the next pose array.
         configured_ = false;
         marked_ = false;
 
@@ -120,14 +122,15 @@ namespace frontier_exploration
 
         BOOST_FOREACH(Frontier frontier, frontier_list){
             //load frontier into visualization poitncloud
-            frontier_point_viz.x = frontier.initial.x;
-            frontier_point_viz.y = frontier.initial.y;
+            frontier_point_viz.x = frontier.middle.x;  //changed to show middle point
+            frontier_point_viz.y = frontier.middle.y;
             frontier_cloud_viz.push_back(frontier_point_viz);
 
             //check if this frontier is the nearest to robot
-            if (frontier.min_distance < selected.min_distance){
+            if (frontier.min_distance < selected.min_distance && frontier.min_distance > 0.6){
                 selected = frontier;
                 max = frontier_cloud_viz.size()-1;
+                ROS_DEBUG("the current smallest distance is %2.4f", selected.min_distance);
             }
         }
 
@@ -145,19 +148,26 @@ namespace frontier_exploration
         next_frontier.header.frame_id = layered_costmap_->getGlobalFrameID();
         next_frontier.header.stamp = ros::Time::now();
 
-        //
         if(frontier_travel_point_ == "closest"){
+            ROS_DEBUG("Using closest point");
             next_frontier.pose.position = selected.initial;
+            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector( selected.initial_nbr, next_frontier.pose.position) );
         }else if(frontier_travel_point_ == "middle"){
+            ROS_DEBUG("Using middle point");
             next_frontier.pose.position = selected.middle;
+            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(selected.middle_nbr, next_frontier.pose.position) );
         }else if(frontier_travel_point_ == "centroid"){
+            ROS_DEBUG("Using centroid point");
             next_frontier.pose.position = selected.centroid;
+            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );//
         }else{
             ROS_ERROR("Invalid 'frontier_travel_point' parameter, falling back to 'closest'");
             next_frontier.pose.position = selected.initial;
+            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
         }
-
-        next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
+        //for closest and middle point, we use local gradient as orientation
+        //next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
+        //frontier_next_goal.publish(next_frontier.pose);
         return true;
 
     }

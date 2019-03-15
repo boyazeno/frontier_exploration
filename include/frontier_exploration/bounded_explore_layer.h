@@ -5,11 +5,12 @@
 #include <costmap_2d/layer.h>
 #include <costmap_2d/GenericPluginConfig.h>
 #include <dynamic_reconfigure/server.h>
-
+#include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/Polygon.h>
 #include <frontier_exploration/Frontier.h>
 #include <frontier_exploration/UpdateBoundaryPolygon.h>
 #include <frontier_exploration/GetNextFrontier.h>
+#define MIN_DISTANCE 0.6
 
 namespace frontier_exploration
 {
@@ -86,7 +87,7 @@ protected:
      * @param next_frontier Pose of found frontier
      * @return True if a reachable frontier was found, false otherwise
      */
-    bool getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier);
+    bool getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseArray &next_frontier);
 
 private:
 

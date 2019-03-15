@@ -75,17 +75,44 @@ namespace frontier_exploration{
   template<typename T, typename S>
   double yawOfVector(const T &origin, const S &end){
 
+      // double delta_x, delta_y;
+      // delta_x = end.x - origin.x;
+      // delta_y = end.y - origin.y;
+
+      // double yaw = atan(delta_y/delta_x);
+      // // double yaw = atan(delta_x/delta_y);
+
+      // if(delta_x < 0){
+      //     yaw = M_PI+yaw;
+      //  }
+
+      // return yaw;
+
+
       double delta_x, delta_y;
+      double yaw =0.0;
       delta_x = end.x - origin.x;
       delta_y = end.y - origin.y;
 
-      double yaw = atan(delta_y/delta_x);
-      // double yaw = atan(delta_x/delta_y);
-
-      if(delta_x < 0){
-          yaw = M_PI+yaw;
-       }
-
+      if(delta_x == 0.0 && delta_y == 0.0){
+        yaw = 0.0;
+      }
+      else if(delta_x == 0.0 && delta_y != 0.0){
+        if(delta_y > 0){
+          yaw = M_PI/2.0;
+        }else{
+          yaw = -1.0 * M_PI/2.0;
+        }
+        
+      }
+      else{
+        yaw = atan(delta_y/delta_x);
+        // double yaw = atan(delta_x/delta_y);
+        if(delta_x < 0){
+         //yaw = M_PI+yaw;
+         yaw = -1 * yaw;
+        }
+      }
       return yaw;
   }
 

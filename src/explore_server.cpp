@@ -3,7 +3,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_2d.h>
-
+#include <geometry_msgs/Point.h>
 #include <geometry_msgs/PolygonStamped.h>
 
 #include <frontier_exploration/ExploreTaskAction.h>
@@ -15,6 +15,7 @@
 #include <move_base_msgs/MoveBaseAction.h>
 
 #include <frontier_exploration/geometry_tools.h>
+#include <vector>
 
 namespace frontier_exploration{
 
@@ -45,6 +46,7 @@ public:
 
         as_.registerPreemptCallback(boost::bind(&FrontierExplorationServer::preemptCb, this));
         as_.start();
+        aborted_vector.clear();
     }
 
 private:
@@ -63,6 +65,7 @@ private:
     frontier_exploration::ExploreTaskFeedback feedback_;
     actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> move_client_;
     move_base_msgs::MoveBaseGoal move_client_goal_;
+    std::vector<geometry_msgs::Point> aborted_vector;
 
     /**
      * @brief Execute callback for actionserver, run after accepting a new goal
@@ -151,7 +154,9 @@ private:
 
                 ROS_DEBUG("Found frontier to explore");
                 success_ = true;
-                goal_pose = feedback_.next_frontier = srv.response.next_frontier;
+                feedback_.next_frontier.header = srv.response.next_frontier.header;
+                feedback_.next_frontier.pose = srv.response.next_frontier.poses[0];
+                goal_pose = feedback_.next_frontier;
                 retry_ = 5;
 
             }else{ //if no frontier found, check if search is successful
@@ -167,7 +172,7 @@ private:
 
                 }else if(retry_ == 0 || !ros::ok()){ //search is not successful
 
-                    ROS_ERROR("Failed exploration");
+                    ROS_INFO("currently no frontier exist");
                     as_.setAborted();
                     return;
                 }
@@ -178,10 +183,61 @@ private:
                 continue;
             }
             //if above conditional does not escape this loop step, search has a valid goal_pose
+            
+            //test, whether the last goal is in aborted_vector.
+            bool isNear_=false;
+            BOOST_FOREACH(geometry_msgs::Point aborted_position, aborted_vector){
+                if(pointsNearby(goal_pose.pose.position,aborted_position,goal_aliasing_*0.5)){
+                    isNear_=true;
+                    //break;
+                }
+            }
+            //check the result only when robot is moving.
+            //or to say, the srv has responded.
+            if(moving_){
+                bool empty_=true;
+                //according to the result ,decide which goal to be sand.
+                ROS_WARN("nubmer of goal in next_frontier is %d", srv.response.next_frontier.poses.size());
+                BOOST_FOREACH(geometry_msgs::Pose goal_pose_candidate,srv.response.next_frontier.poses){
+                    ROS_INFO("start to check goal_pose one by one from srv.response");
+                    bool flag=false;
+                    BOOST_FOREACH(geometry_msgs::Point aborted_position,aborted_vector){
+                        if(pointsNearby(aborted_position,goal_pose_candidate.position,goal_aliasing_*0.5)){
+                            //the current goal should be aborted
+                            flag=true;
+                            ROS_INFO("current goal is close to the aborted_position");
+                            ROS_WARN_STREAM("the current goal(in list): x: "<<goal_pose_candidate.position.x <<" y: "<< goal_pose_candidate.position.y <<" z: "<<goal_pose_candidate.position.z<<"is near the goal in aborted_list");
+                            ROS_WARN_STREAM("the corresponded goal(in aborted_list) is: x: "<<aborted_position.x <<" y: "<< aborted_position.y <<" z: "<<aborted_position.z);
+                        }
+                    }
+                    if(!flag){
+                        //the current goal is legal goal. Set it as new goal.
+                        feedback_.next_frontier.header = srv.response.next_frontier.header;
+                        feedback_.next_frontier.pose = goal_pose_candidate;
+                        goal_pose = feedback_.next_frontier;
+                        //that means the legal goal is not empty.
+                        empty_=false;
+                        ROS_WARN("find a legel goal_pose");
+                        break;
+                    }
+                }
 
-            //check if new goal is close to old goal, hence no need to resend
-            if(!moving_ || !pointsNearby(move_client_goal_.target_pose.pose.position,goal_pose.pose.position,goal_aliasing_*0.5)){
-                ROS_DEBUG("New exploration goal");
+                //exit
+                //if all the goal_candidate is aborted, then the explore task finished.
+                if(empty_){
+                    //search is successful,but not perfect
+                    ROS_WARN("Finished exploring room,but still some blind angle");
+                    as_.setSucceeded();
+                    boost::unique_lock<boost::mutex> lock(move_client_lock_);
+                    move_client_.cancelGoalsAtAndBeforeTime(ros::Time::now());
+                    return;
+                }
+            }        
+            //****************************************
+
+
+            if(isNear_){
+                //send the new goal
                 move_client_goal_.target_pose = goal_pose;
                 boost::unique_lock<boost::mutex> lock(move_client_lock_);
                 if(as_.isActive()){
@@ -189,7 +245,33 @@ private:
                     moving_ = true;
                 }
                 lock.unlock();
+                //************
             }
+            else{
+                //judge whether it is near the last goal, and whether the robot is moving or not.
+                if(!moving_ || !pointsNearby(move_client_goal_.target_pose.pose.position,goal_pose.pose.position,goal_aliasing_*0.5)){
+                    ROS_DEBUG("New exploration goal");
+                    move_client_goal_.target_pose = goal_pose;
+                    boost::unique_lock<boost::mutex> lock(move_client_lock_);
+                    if(as_.isActive()){
+                        move_client_.sendGoal(move_client_goal_, boost::bind(&FrontierExplorationServer::doneMovingCb, this, _1, _2),0,boost::bind(&FrontierExplorationServer::feedbackMovingCb, this, _1));
+                        moving_ = true;
+                    }
+                    lock.unlock();
+                }
+            }
+
+            //check if new goal is close to old goal, hence no need to resend
+            // if(!moving_ || !pointsNearby(move_client_goal_.target_pose.pose.position,goal_pose.pose.position,goal_aliasing_*0.5)){
+            //     ROS_DEBUG("New exploration goal");
+            //     move_client_goal_.target_pose = goal_pose;
+            //     boost::unique_lock<boost::mutex> lock(move_client_lock_);
+            //     if(as_.isActive()){
+            //         move_client_.sendGoal(move_client_goal_, boost::bind(&FrontierExplorationServer::doneMovingCb, this, _1, _2),0,boost::bind(&FrontierExplorationServer::feedbackMovingCb, this, _1));
+            //         moving_ = true;
+            //     }
+            //     lock.unlock();
+            // }
 
             //check if continuous goal updating is enabled
             if(frequency_ > 0){
@@ -243,8 +325,9 @@ private:
     void doneMovingCb(const actionlib::SimpleClientGoalState& state, const move_base_msgs::MoveBaseResultConstPtr& result){
 
         if (state == actionlib::SimpleClientGoalState::ABORTED){
-            ROS_ERROR("Failed to move");
-            as_.setAborted();
+            ROS_INFO("Goal aborted, trying to find another goal.");
+            //as_.setAborted();
+            aborted_vector.push_back(feedback_.next_frontier.pose.position);
         }else if(state == actionlib::SimpleClientGoalState::SUCCEEDED){
             moving_ = false;
         }
@@ -252,7 +335,6 @@ private:
     }
 
 };
-
 }
 
 int main(int argc, char** argv)

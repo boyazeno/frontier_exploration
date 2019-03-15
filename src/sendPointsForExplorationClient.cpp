@@ -65,71 +65,71 @@ private:
         /*the local detect range is not bigger than 2*gloable range*/        
         while(local_range < 2*range){
                 
-        if(keep == false){
-        //do exploration for one time   
-        ROS_INFO("Sending goal");
-        frontier_exploration::ExploreTaskGoal goal;
-        //define the center point of local polygon
-        point.header.frame_id = "base_link";
-        point.header. stamp = ros::Time::now();
-        point.point.x = point.point.y = point.point.z=0.0;
-        //generate local polygon, and stored in input_
-        input_.header.frame_id = "base_link";
-        input_.header.stamp = ros::Time::now();
-        input_.polygon.points.resize(18);
-        for(int i=0; i<18; ++i){
-            geometry_msgs::Point32 temp;
-            temp.x = local_range*cos(i*2*PI/18);
-            temp.y = local_range*sin(i*2*PI/18);
-            temp.z = 0.0;
-            input_.polygon.points[i]= temp;
-        }
-        goal.explore_center = point;
-        goal.explore_boundary = input_;
-        exploreClient.sendGoal(goal);  //here can use a callback function to get the current location.
-        //check whether the action is finished or time out.           
-        finished_before_timeout = exploreClient.waitForResult(ros::Duration(20.0));
-        }
-        else{
-            //keep the last motion for 10 secs. 
-        ROS_INFO("keep the last motion for 10 secs");
-        ros::Duration(10.0).sleep();
-        keep = false;
-        finished_before_timeout = false;
-        }
-        
-   
-        if (finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::SUCCEEDED)
-        {
-            ROS_INFO("current goal is success,local rangel will be larger");
-            //the action is successfully finished, so the local detect range will be larger
-            local_range = local_range * MULTIPLIER;
+            if(keep == false){
+            //do exploration for one time   
+            ROS_INFO("Sending goal");
+            frontier_exploration::ExploreTaskGoal goal;
+            //define the center point of local polygon
+            point.header.frame_id = "base_link";
+            point.header. stamp = ros::Time::now();
+            point.point.x = point.point.y = point.point.z=0.0;
+            //generate local polygon, and stored in input_
+            input_.header.frame_id = "base_link";
+            input_.header.stamp = ros::Time::now();
+            input_.polygon.points.resize(18);
+            for(int i=0; i<18; ++i){
+                geometry_msgs::Point32 temp;
+                temp.x = local_range*cos(i*2*PI/18);
+                temp.y = local_range*sin(i*2*PI/18);
+                temp.z = 0.0;
+                input_.polygon.points[i]= temp;
+            }
+            goal.explore_center = point;
+            goal.explore_boundary = input_;
+            exploreClient.sendGoal(goal);  //here can use a callback function to get the current location.
+            //check whether the action is finished or time out.           
+            finished_before_timeout = exploreClient.waitForResult(ros::Duration(20.0));
+            }
+            else{
+                //keep the last motion for 10 secs. 
+            ROS_INFO("keep the last motion for 10 secs");
+            ros::Duration(10.0).sleep();
             keep = false;
-            continue;
-        }
-        else if(finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::ACTIVE)
-        {
-            keep = true;
-            actionlib::SimpleClientGoalState state = exploreClient.getState();
-            ROS_INFO("current goal state is %s",state.toString().c_str());
-        }
-        else if(finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::ABORTED)
-        {
-            keep = false;
-            actionlib::SimpleClientGoalState state = exploreClient.getState();
-            ROS_INFO("current goal state is %s",state.toString().c_str());
-            //action is failed or timeout, which means the local region is not fully detected. should send the same detect range (base_link) again to detect another place with the same range.
-            local_range = local_range * 1.1;
-        }
-        else
-        {
-            keep = false;
-            actionlib::SimpleClientGoalState state = exploreClient.getState();
-            ROS_INFO("current goal state is %s",state.toString().c_str());
-            //action is failed or timeout, which means the local region is not fully detected. should send the same detect range (base_link) again to detect another place with the same range.
-            local_range = SMALL_RANGE;
+            finished_before_timeout = false;
+            }
             
-        }
+    
+            if (finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::SUCCEEDED)
+            {
+                ROS_INFO("current goal is success,local rangel will be larger");
+                //the action is successfully finished, so the local detect range will be larger
+                local_range = local_range * MULTIPLIER;
+                keep = false;
+                continue;
+            }
+            else if(finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::ACTIVE)
+            {
+                keep = true;
+                actionlib::SimpleClientGoalState state = exploreClient.getState();
+                ROS_INFO("current goal state is %s",state.toString().c_str());
+            }
+            else if(finished_before_timeout&&exploreClient.getState()==actionlib::SimpleClientGoalState::ABORTED)
+            {
+                keep = false;
+                actionlib::SimpleClientGoalState state = exploreClient.getState();
+                ROS_INFO("current goal state is %s",state.toString().c_str());
+                //action is failed or timeout, which means the local region is not fully detected. should send the same detect range (base_link) again to detect another place with the same range.
+                local_range = local_range * 1.1;
+            }
+            else
+            {
+                keep = false;
+                actionlib::SimpleClientGoalState state = exploreClient.getState();
+                ROS_INFO("current goal state is %s",state.toString().c_str());
+                //action is failed or timeout, which means the local region is not fully detected. should send the same detect range (base_link) again to detect another place with the same range.
+                local_range = SMALL_RANGE;
+                
+            }
         
         }
         
@@ -145,7 +145,7 @@ public:
         nh_()
     {
         service_ = nh_.advertiseService("send_Points_For_Exploration_Server", &FrontierExplorationClient::pointCb, this);
-        ROS_INFO("Start sanding goal...");
+        ROS_INFO("Waiting for goal...");
     }    
 
 };

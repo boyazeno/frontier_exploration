@@ -65,7 +65,7 @@ std::list<Frontier> FrontierSearch::searchFrom(geometry_msgs::Point position){
             }else if(isNewFrontierCell(nbr, frontier_flag)){
                 frontier_flag[nbr] = true;
                 Frontier new_frontier = buildNewFrontier(nbr, pos, frontier_flag);
-                if(new_frontier.size > 4){
+                if(new_frontier.size > 5){
                     frontier_list.push_back(new_frontier);
                 }
             }
@@ -153,29 +153,6 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned in
                     output.min_distance = distance;
                     output.middle.x = wx;
                     output.middle.y = wy;
-                    //TODO iterate calculate average free pixel around current pixel
-                    //and save it in output.middle_nbr a average point in world coords
-                    size = 0;
-                    output.middle_nbr.x = 0.0;
-                    output.middle_nbr.y = 0.0;
-                    BOOST_FOREACH(unsigned int nbr_nbr, nhood8(nbr, costmap_)){
-                    //check if neiighbour is a FREE_SPACE
-                    //if yes, then add it to calculate the average range
-        
-                    if(freeCell(nbr_nbr, FREE_SPACE, costmap_)){
-                        unsigned int tx, ty;
-                        double wx,wy;
-                        costmap_.indexToCells(nbr_nbr,tx,ty);
-                        costmap_.mapToWorld(tx,ty,wx,wy); 
-                        output.middle_nbr.x += wx;
-                        output.middle_nbr.y += wy;
-                        size++;
-                    }
-                    }
-                    output.middle_nbr.x /= size;
-                    output.middle_nbr.y /= size;
-    
-
                 }
 
                 //add to queue for breadth first search
@@ -184,9 +161,60 @@ Frontier FrontierSearch::buildNewFrontier(unsigned int initial_cell, unsigned in
         }
     }
 
+    //TODO iterate calculate average free pixel around current pixel
+    //and save it in output.middle_nbr a average point in world coords
+    size = 0;
+    output.middle_nbr.x = 0.0;
+    output.middle_nbr.y = 0.0;
+    unsigned int t_middle_x, t_middle_y;
+    //get index of middle point
+    costmap_.worldToMap(output.middle.x, output.middle.y,t_middle_x, t_middle_y);
+    unsigned int nbr=costmap_.getIndex(t_middle_x, t_middle_y);
+    BOOST_FOREACH(unsigned int nbr_nbr, nhood8(nbr, costmap_)){
+    //check if neiighbour is a FREE_SPACE
+    //if yes, then add it to calculate the average range
+        
+        if(freeCell(nbr_nbr, FREE_SPACE, costmap_)){
+        unsigned int tx, ty;
+        double wx,wy;
+        costmap_.indexToCells(nbr_nbr,tx,ty);
+        costmap_.mapToWorld(tx,ty,wx,wy); 
+        output.middle_nbr.x += wx;
+        output.middle_nbr.y += wy;
+        size++;
+        }
+    }
+    output.middle_nbr.x /= size;
+    output.middle_nbr.y /= size;
+
     //average out frontier centroid
     output.centroid.x /= output.size;
     output.centroid.y /= output.size;
+
+    size = 0;
+    output.centroid_nbr.x = 0.0;
+    output.centroid_nbr.y = 0.0;
+    unsigned int t_centroid_x, t_centroid_y;
+    //get index of middle point
+    costmap_.worldToMap(output.centroid.x, output.centroid.y,t_centroid_x, t_centroid_y);
+    nbr=costmap_.getIndex(t_centroid_x, t_centroid_y);
+    BOOST_FOREACH(unsigned int nbr_nbr, nhood8(nbr, costmap_)){
+    //check if neiighbour is a FREE_SPACE
+    //if yes, then add it to calculate the average range
+        
+        if(freeCell(nbr_nbr, FREE_SPACE, costmap_)){
+        unsigned int tx, ty;
+        double wx,wy;
+        costmap_.indexToCells(nbr_nbr,tx,ty);
+        costmap_.mapToWorld(tx,ty,wx,wy); 
+        output.centroid_nbr.x += wx;
+        output.centroid_nbr.y += wy;
+        size++;
+        }
+    }
+    output.centroid_nbr.x /= size;
+    output.centroid_nbr.y /= size;
+
     return output;
 }
 

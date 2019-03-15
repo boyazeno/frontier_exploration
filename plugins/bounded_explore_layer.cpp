@@ -3,6 +3,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <geometry_msgs/PolygonStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <costmap_2d/costmap_2d.h>
 #include <costmap_2d/footprint.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -10,6 +11,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <boost/foreach.hpp>
+#include <cmath>
 
 #include <frontier_exploration/Frontier.h>
 #include <frontier_exploration/UpdateBoundaryPolygon.h>
@@ -82,7 +84,7 @@ namespace frontier_exploration
         return getNextFrontier(req.start_pose, res.next_frontier);
     }
 
-    bool BoundedExploreLayer::getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseStamped &next_frontier){
+    bool BoundedExploreLayer::getNextFrontier(geometry_msgs::PoseStamped start_pose, geometry_msgs::PoseArray &next_frontier){
 
         //wait for costmap to get marked with boundary
         ros::Rate r(10);
@@ -107,7 +109,7 @@ namespace frontier_exploration
         std::list<Frontier> frontier_list = frontierSearch.searchFrom(start_pose.pose.position);
 
         if(frontier_list.size() == 0){
-            ROS_DEBUG("No frontiers found, exploration complete");
+            ROS_DEBUG_STREAM("No frontiers found, exploration complete");
             return false;
         }
 
@@ -119,20 +121,31 @@ namespace frontier_exploration
         pcl::PointCloud<pcl::PointXYZI> frontier_cloud_viz;
         pcl::PointXYZI frontier_point_viz(50);
         int max;
-
+        int num_frontier_list = 0;
+        num_frontier_list = frontier_list.size();
+        int num_frontier_sorted = 0;
+        float distance[num_frontier_list];
+        int index_=0;
         BOOST_FOREACH(Frontier frontier, frontier_list){
-            //load frontier into visualization poitncloud
-            frontier_point_viz.x = frontier.middle.x;  //changed to show middle point
-            frontier_point_viz.y = frontier.middle.y;
-            frontier_cloud_viz.push_back(frontier_point_viz);
+            //collect all distance in distance[]
+            distance[index_] = frontier.min_distance;
+            index_ += 1;
 
-            //check if this frontier is the nearest to robot
-            if (frontier.min_distance < selected.min_distance && frontier.min_distance > 0.6){
-                selected = frontier;
-                max = frontier_cloud_viz.size()-1;
-                ROS_DEBUG("the current smallest distance is %2.4f", selected.min_distance);
+            if(frontier.min_distance > MIN_DISTANCE){
+                num_frontier_sorted += 1;
+                //load frontier into visualization poitncloud
+                frontier_point_viz.x = frontier.middle.x;  //changed to show middle point
+                frontier_point_viz.y = frontier.middle.y;
+                frontier_cloud_viz.push_back(frontier_point_viz);
+                //check if this frontier is the nearest to robot
+                if (frontier.min_distance < selected.min_distance ){
+                    selected = frontier;
+                    max = frontier_cloud_viz.size()-1;
+                    ROS_WARN_STREAM("the current smallest distance is " << selected.min_distance);
+                }
             }
         }
+
 
         //color selected frontier
         frontier_cloud_viz[max].intensity = 100;
@@ -144,27 +157,76 @@ namespace frontier_exploration
         frontier_viz_output.header.stamp = ros::Time::now();
         frontier_cloud_pub.publish(frontier_viz_output);
 
+        //collect all frontiers,that is outside the smallest range, in distance_sorted.
+        float distance_sorted[num_frontier_sorted];
+        int index_distance_sorted=0;
+        for(int i=0;i<num_frontier_list;++i){
+            if(distance[i]>MIN_DISTANCE){
+                distance_sorted[index_distance_sorted] = distance[i];
+                index_distance_sorted+=1;
+            }
+        }
+
+        //range the distance from small to big, and storage the distance in distance_sorted.
+        for(int i=0;i<num_frontier_sorted-1;++i){
+            for(int j=0;j<num_frontier_sorted-1-i;++j){
+                if (distance_sorted[j] > distance_sorted[j+1]){
+                    //swap j and j + 1
+                    float temp = distance_sorted[j];
+                    distance_sorted[j] =  distance_sorted[j + 1];
+                    distance_sorted[j + 1] = temp;
+                }
+            }
+        }
+
+        //print the whole list of distance_sorted
+        ROS_WARN_STREAM("the whole list of distance_sorted is ");
+        for(int i=0;i<num_frontier_sorted;++i){
+            ROS_WARN_STREAM(" The "<< i << "is "<<distance_sorted[i]);
+        }
+        
         //set goal pose to next frontier
         next_frontier.header.frame_id = layered_costmap_->getGlobalFrameID();
         next_frontier.header.stamp = ros::Time::now();
+        next_frontier.poses.resize(num_frontier_sorted);
 
-        if(frontier_travel_point_ == "closest"){
-            ROS_DEBUG("Using closest point");
-            next_frontier.pose.position = selected.initial;
-            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector( selected.initial_nbr, next_frontier.pose.position) );
-        }else if(frontier_travel_point_ == "middle"){
-            ROS_DEBUG("Using middle point");
-            next_frontier.pose.position = selected.middle;
-            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(selected.middle_nbr, next_frontier.pose.position) );
-        }else if(frontier_travel_point_ == "centroid"){
-            ROS_DEBUG("Using centroid point");
-            next_frontier.pose.position = selected.centroid;
-            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );//
-        }else{
-            ROS_ERROR("Invalid 'frontier_travel_point' parameter, falling back to 'closest'");
-            next_frontier.pose.position = selected.initial;
-            next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
+        //storage all the pose for sorted frontier in next_frontier.
+        ROS_WARN_STREAM("now sort the frontier_list in the right order ");
+        BOOST_FOREACH(Frontier frontier, frontier_list){
+            ROS_INFO_STREAM("the min_distance of current frontier is " << frontier.min_distance);
+            //storage the corresponded frontier into right range
+            for(int i=0;i<num_frontier_sorted;++i){
+                if(((float)frontier.min_distance - distance_sorted[i] < 0.0001) && ((float)frontier.min_distance - distance_sorted[i] > -1*0.0001)){
+                    ROS_INFO_STREAM("current delta distance is : "<<(float)frontier.min_distance - distance_sorted[i]);
+                    ROS_INFO_STREAM("current (float)min_distance is:"<<(float)frontier.min_distance<< "  and the distance_sorted"<<i<<"is : "<<distance_sorted[i]);
+                    ROS_WARN_STREAM("the rank of "<< frontier.min_distance << "is " << i);
+                    if(frontier_travel_point_ == "closest"){
+                        ROS_DEBUG("Using closest point");
+                        next_frontier.poses[i].position = frontier.initial;
+                        next_frontier.poses[i].orientation = tf::createQuaternionMsgFromYaw( yawOfVector( frontier.initial_nbr, frontier.initial) );
+                        ROS_INFO_STREAM("the current yawOfVector is :"<< yawOfVector( frontier.initial_nbr, frontier.initial));
+                    }else if(frontier_travel_point_ == "middle"){
+                        ROS_DEBUG("Using middle point");
+                        next_frontier.poses[i].position = frontier.middle;
+                        next_frontier.poses[i].orientation = tf::createQuaternionMsgFromYaw( yawOfVector(frontier.middle_nbr, frontier.middle));
+                        ROS_INFO_STREAM("the current yawOfVector is :"<< yawOfVector( frontier.middle_nbr, frontier.middle));
+                    }else if(frontier_travel_point_ == "centroid"){
+                        ROS_DEBUG("Using centroid point");
+                        next_frontier.poses[i].position = frontier.centroid;
+                        next_frontier.poses[i].orientation = tf::createQuaternionMsgFromYaw( yawOfVector(frontier.centroid_nbr, frontier.centroid) );//
+                        ROS_INFO_STREAM("the current yawOfVector is :"<< yawOfVector(frontier.centroid_nbr, frontier.centroid));
+                    }else{
+                        ROS_ERROR("Invalid 'frontier_travel_point' parameter, falling back to 'closest'");
+                        next_frontier.poses[i].position = frontier.initial;
+                        next_frontier.poses[i].orientation = tf::createQuaternionMsgFromYaw( yawOfVector(frontier.initial_nbr, frontier.initial) );
+                    }
+                    ROS_WARN_STREAM("the quanternion for the" << i <<"is: x: " << next_frontier.poses[i].orientation.x <<" y: " <<next_frontier.poses[i].orientation.y<<" z:"<<next_frontier.poses[i].orientation.z<<" w: "<<next_frontier.poses[i].orientation.w);
+                }
+            }
+            
+
         }
+   
         //for closest and middle point, we use local gradient as orientation
         //next_frontier.pose.orientation = tf::createQuaternionMsgFromYaw( yawOfVector(start_pose.pose.position, next_frontier.pose.position) );
         //frontier_next_goal.publish(next_frontier.pose);

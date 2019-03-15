@@ -32,7 +32,9 @@ void feedbackCb(const frontier_exploration::ExploreTaskFeedbackConstPtr feedback
   ROS_INFO("Got Feedback of position: x : %6.2f  y: %6.2f  z: %6.2f", feedback->base_position.pose.position.x, feedback->base_position.pose.position.y, feedback->base_position.pose.position.z);
  }
 
- void doneCb(const actionlib::SimpleClientGoalState& state, const frontier_exploration::ExploreTaskResultConstPtr& result){}
+ void doneCb(const actionlib::SimpleClientGoalState& state, const frontier_exploration::ExploreTaskResultConstPtr& result){
+     ROS_WARN("finished exploration in range of 6.0");
+ }
  
 void activeCb()
  {
@@ -55,8 +57,8 @@ int main(int argc, char** argv)
     input_.polygon.points.resize(18);
     for(int i=0; i<18;++i){
         geometry_msgs::Point32 point;
-        point.x = 3.5*sin(i*2*PI/18);
-        point.y = 3.5*cos(i*2*PI/18);
+        point.x = 6.0*sin(i*2*PI/18);
+        point.y = 6.0*cos(i*2*PI/18);
         point.z = 0;
         input_.polygon.points[i]=point;
     } 
@@ -69,20 +71,8 @@ int main(int argc, char** argv)
     goal.explore_boundary = input_;
     exploreClient.sendGoal(goal, &doneCb, &activeCb,&feedbackCb); 
 
-    bool finished_before_timeout = exploreClient.waitForResult(ros::Duration(50.0));
-                
-    if (finished_before_timeout){
-        actionlib::SimpleClientGoalState state = exploreClient.getState();
-        ROS_INFO("Action finished: %s",state.toString().c_str());
-    }
-    else
-    {ROS_INFO("Action did not finish before the time out.");       
-    }
-       exploreClient.sendGoal(goal);   
-       ROS_INFO("Sending goal");
-       finished_before_timeout = exploreClient.waitForResult(ros::Duration(50.0));
-       actionlib::SimpleClientGoalState state = exploreClient.getState();
-       ROS_INFO("Action finished: %s",state.toString().c_str());
+    //actionlib::SimpleClientGoalState state = exploreClient.getState();
+    //ROS_INFO("Action finished: %s",state.toString().c_str());
     ros::spin();
     return 0;
 }

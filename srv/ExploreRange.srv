@@ -2,4 +2,4 @@ string geometry
 geometry_msgs/Point center
 float32 range
 ---
-string feedback
+bool feedback

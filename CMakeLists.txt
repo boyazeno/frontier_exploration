@@ -77,6 +77,10 @@ add_executable(sendPointsForExplorationClient src/sendPointsForExplorationClient
 target_link_libraries(sendPointsForExplorationClient ${catkin_LIBRARIES})
 add_dependencies(sendPointsForExplorationClient ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
 
+add_executable(map_generate_server src/map_generate_server.cpp)
+target_link_libraries(map_generate_server ${catkin_LIBRARIES})
+add_dependencies(map_generate_server ${PROJECT_NAME}_generate_messages_cpp ${catkin_EXPORTED_TARGETS})
+
 if(CATKIN_ENABLE_TESTING)
   # Find package test dependencies
   find_package(rostest REQUIRED)

@@ -134,7 +134,7 @@ namespace frontier_exploration
             }
         }
 
-        BOOST_FOREACH(Frontier frontier_original, frontier_list){
+        BOOST_FOREACH(Frontier& frontier_original, frontier_list){
             //get the angle for each point in map coordinate
             double angle;
             double dx=frontier_original.centroid.x-start_pose.pose.position.x;

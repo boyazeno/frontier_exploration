@@ -10,7 +10,7 @@
 #include <frontier_exploration/Frontier.h>
 #include <frontier_exploration/UpdateBoundaryPolygon.h>
 #include <frontier_exploration/GetNextFrontier.h>
-#define MIN_DISTANCE 0.6
+#define MIN_DISTANCE 0.44
 
 namespace frontier_exploration
 {

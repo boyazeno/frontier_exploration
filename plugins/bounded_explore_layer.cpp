@@ -18,6 +18,7 @@
 #include <frontier_exploration/GetNextFrontier.h>
 #include <frontier_exploration/frontier_search.h>
 #include <frontier_exploration/geometry_tools.h>
+#define M_PI 3.14159265358979323846
 
 PLUGINLIB_EXPORT_CLASS(frontier_exploration::BoundedExploreLayer, costmap_2d::Layer)
 
@@ -111,6 +112,62 @@ namespace frontier_exploration
         if(frontier_list.size() == 0){
             ROS_DEBUG_STREAM("No frontiers found, exploration complete");
             return false;
+        }
+
+       //change the distance into weights by using theta and distance.
+        //got the original angle angle_o in map coordinate
+        double angle_o;
+        if(start_pose.pose.orientation.z>=0){
+            if(start_pose.pose.orientation.w>=0){
+                angle_o=asin(start_pose.pose.orientation.z);
+            }
+            else{
+                angle_o=M_PI-asin(start_pose.pose.orientation.z);
+            }
+        }
+        else{
+            if(start_pose.pose.orientation.w>=0){
+                angle_o=asin(start_pose.pose.orientation.z);
+            }
+            else{
+                angle_o=-1*M_PI-asin(start_pose.pose.orientation.z);
+            }
+        }
+
+        BOOST_FOREACH(Frontier frontier_original, frontier_list){
+            //get the angle for each point in map coordinate
+            double angle;
+            double dx=frontier_original.centroid.x-start_pose.pose.position.x;
+            double dy=frontier_original.centroid.y-start_pose.pose.position.y;
+            if(dy>=0){
+                if(dx>=0){
+                    angle=asin(dy/sqrt(dx*dx+dy*dy));
+                }
+                else{
+                    angle=M_PI-asin(dy/sqrt(dx*dx+dy*dy));
+                }
+            }
+            else{
+                if(dx>=0){
+                    angle=asin(dy/sqrt(dx*dx+dy*dy));
+                }
+                else{
+                    angle=-1*M_PI-asin(dy/sqrt(dx*dx+dy*dy));
+                }
+            }
+
+            double theta=angle-angle_o;
+            if(theta>M_PI){
+                theta=theta-2*M_PI;
+            }
+            else if(theta<-1*M_PI){
+                theta=theta+2*M_PI;
+            }
+            double weight_1,weight_2,weight;
+            weight_1=(1/(sqrt(2*M_PI)*M_PI/4.0))*exp(-1*theta*theta/(2*M_PI*M_PI/16.0));
+            weight_2=(1/(8*sqrt(2*M_PI)))*exp(-1*frontier_original.min_distance*frontier_original.min_distance/(2*64));
+            weight = 1-weight_1-weight_2;
+            frontier_original.min_distance=weight;
         }
 
         //create placeholder for selected frontier
